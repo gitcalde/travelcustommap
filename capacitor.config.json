@@ -1,6 +1,6 @@
 {
   "appId": "es.acalderon.travelcustommap",
   "appName": "Travel custom map",
-  "webDir": "www",
+  "webDir": ".",
   "bundledWebRuntime": false
 }

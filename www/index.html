@@ -786,7 +786,7 @@
         }
 
         function cargarWidgetMeteo() {
-            fetch("meteo.php")
+            fetch("https://sierraelsa.duckdns.org/viajes/meteo.php")
                 .then(res => res.json())
                 .then(data => {
                     const clave = obtenerClavePronostico(data);
