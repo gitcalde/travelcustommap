@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Travel custom map</string>
+    <string name="title_activity_main">Travel custom map</string>
+    <string name="package_name">es.acalderon.travelcustommap</string>
+    <string name="custom_url_scheme">es.acalderon.travelcustommap</string>
+</resources>

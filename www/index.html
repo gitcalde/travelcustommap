@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mapa de Burdeos</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Fontawesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+    
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 0;
+        }
+    
+        .leaflet-control-attribution {
+            display: none;
+        }
+    
+        #botonMenu {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1055;
+        }
+    
+        .leaflet-bottom.leaflet-right {
+            margin-bottom: 3.5rem !important;
+        }
+    
+        .btn-icon-fixed {
+            width: 1.9rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0.475rem 0;
+        }
+    
+        .custom-marker-icon {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            font-size: 1.1rem;
+            background-color: var(--bs-primary);
+            color: white;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+    
+        /* Panel de instrucciones */
+        #instrucciones {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            z-index: 1060;
+            border-top: 1px solid #ccc;
+            transition: transform 0.3s ease;
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+            max-height: 50%;
+            overflow-y: auto;
+        }
+    
+        #instrucciones.collapsed {
+            transform: translateY(100%);
+        }
+    
+        #tituloInstrucciones {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+    
+        #listaInstrucciones .list-group-item.active {
+            background-color: #e7f1ff;
+            color: inherit;
+            font-weight: 500;
+            z-index: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+    
+        @media (max-width: 768px) {
+            #instrucciones {
+                font-size: 0.9rem;
+            }
+        }
+    
+        /* Filtro de categorías */
+    
+        #toggleCategorias {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 1055;
+            background-color: #fff;
+            color: #333;
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            padding: 0.4rem 0.6rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+    
+        #panelCategorias {
+            position: fixed;
+            bottom: 1.1rem;
+            left: calc(1rem + 44px); /* a la derecha del botón */
+            z-index: var(--bs-offcanvas-zindex, 1040);
+            padding: 0.2rem 0.6rem;
+            background: #fff;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            white-space: nowrap;
+            display: none;
+        }
+    
+        #contenedorCategorias {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 0.2rem;
+        }
+    
+        .categoria-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+    
+        .categoria-toggle.activa {
+            color: white !important;
+            border: 2px solid #fff;
+        }
+    </style>
+    
+</head>
+
+<body>
+  
+    <!-- Botón de menú -->
+    <button id="botonMenu" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#sidebar"
+        aria-controls="sidebar">
+        <i class="fas fa-bars"></i>
+    </button>
+    <!-- Grupo de botones flotantes ruta (visible si hay ruta activa) -->
+    <div id="grupoBotonesRuta" class="btn-group position-fixed d-none" role="group" style="top: 1rem; right: 1rem; z-index: 1055;">
+        <button id="toggleInstrucciones" class="btn btn-outline-secondary" title="Mostrar instrucciones">
+            <i class="fa-solid fa-signs-post"></i>
+        </button>
+        <button id="cancelarRuta" class="btn btn-outline-danger" title="Cancelar ruta">
+            <i class="fas fa-xmark"></i>
+        </button>
+    </div>
+    <!-- Widget para mostrar el tiempo -->
+    <div id="widget-meteo" class="position-fixed top-0 end-0 p-3 bg-white shadow-sm rounded" style="z-index: 1060; max-width: 480px;">
+        <div id="meteo-contenido" class="small text-muted">Cargando...</div>
+    </div>
+    
+    <!-- Panel lateral -->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebar">
+        <div class="offcanvas-header d-flex flex-column align-items-start">
+            <div class="w-100 d-flex justify-content-between align-items-start">
+                <div>
+                    <h5 class="mb-0">Bordeaux on tour 2025</h5>
+                    <small class="text-muted">Cartiegos de adopción por el mundo</small>
+                </div>
+                <button type="button" class="btn-close ms-3" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+            </div>
+        </div>        
+        <div class="offcanvas-body">
+            <ul id="lugares-lista" class="list-group"></ul>
+        </div>
+    </div>
+
+    <!-- Mapa -->
+    <div id="map"></div>
+
+    <!-- Botón para abrir el panel de categorías -->
+    <button id="toggleCategorias" class="btn btn-light position-fixed" style="bottom: 1rem; left: 1rem; z-index: 1055;">
+        <i class="bi bi-sliders2"></i>
+    </button>
+
+    <!-- Panel deslizante de categorías -->
+    <div id="panelCategorias" style="display:none">
+        <div id="contenedorCategorias" class="d-flex flex-wrap gap-2 justify-content-start"></div>
+    </div>
+
+    <!-- Panel de instrucciones -->
+    <div id="instrucciones" class="collapsed">
+        <div id="tituloInstrucciones" class="p-3 border-bottom d-flex justify-content-between align-items-start flex-column sticky-top shadow-sm" style="z-index: 2;">
+            <div class="w-100 d-flex justify-content-between align-items-center mb-2">
+                <strong id="rutaTitulo" class="text-dark fs-5">
+                    <span id="nombreDestino">...</span><i class="fas fa-route ms-2"></i>
+                </strong>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="cerrarInstrucciones">✕</button>
+                </div>
+            </div>              
+            <div class="text-muted small d-flex gap-3 px-1">
+                <div><i class="fas fa-clock me-1"></i><span id="duracionRuta">--</span></div>
+                <div><i class="fas fa-road me-1"></i><span id="distanciaRuta">--</span></div>
+            </div>
+        </div>
+        <ul id="listaInstrucciones" class="list-group list-group-flush px-3 pb-3"></ul>
+    </div>
+
+    <!-- Modal de origen -->
+    <div class="modal fade" id="modalOrigen" tabindex="-1" aria-labelledby="modalOrigenLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">¿Desde dónde calcular la ruta?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body d-flex flex-column gap-2">
+                    <button id="usarUbicacion" class="btn btn-outline-primary"><i
+                            class="fas fa-location-arrow me-2"></i> Mi ubicación actual</button>
+                    <button id="usarApartamento" class="btn btn-outline-secondary"><i
+                            class="fas fa-house-user me-2"></i> Desde el apartamento</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de detalle genérico -->
+    <div class="modal fade" id="modalDetalle" tabindex="-1" aria-labelledby="modalDetalleLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalDetalleLabel"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body" id="modalDetalleBody">
+                    <!-- Contenido generado dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const map = L.map('map', { zoomControl: false }).setView([44.8378, -0.5792], 13.5);
+        const capaMarcadores = L.layerGroup().addTo(map);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap & CARTO',
+            subdomains: 'abcd',
+            minZoom: 13,
+            maxZoom: 19
+        }).addTo(map);
+
+        const apiKey = 'cbab8298-0a32-4a68-b3fa-a56d594bf309';
+        const apartamentoCoords = [44.85270831042637, -0.5865369606607735];
+        let rutaLayer = null;
+        let tipoRuta = 'foot'; // Puede ser 'foot' o 'bike'
+        let destinoSeleccionado = null;
+        let nombreDestino = '';
+
+        let puntoActivoMarker = null;
+        let pasoActivo = null;
+        let primerClic = true;
+
+        let segmentoActivo = null;
+        let contornoActivo = null;
+        let categoriasVisibles = new Set();
+
+
+        // Extraemos los lugares de interes del json
+        let lugaresCategorizados = {};
+
+        fetch('../admin/bordeaux.json')
+        .then(res => res.json())
+        .then(data => {
+            lugaresCategorizados = data;
+            Object.keys(lugaresCategorizados).forEach(cat => categoriasVisibles.add(cat));
+            renderizarLugares();
+            //renderizarPanelCategorias();
+        })
+        .catch(error => console.error('Error cargando lugares:', error));
+        
+        const instruccionesPanel = document.getElementById('instrucciones');
+        const toggleBtn = document.getElementById('toggleInstrucciones');
+        const cerrarBtn = document.getElementById('cerrarInstrucciones');
+        const botonMenu = document.getElementById('botonMenu');
+        const offcanvasElement = document.getElementById('sidebar');
+        const offcanvasInstance = new bootstrap.Offcanvas(offcanvasElement);
+        
+        const coloresPorCategoria = {
+            "Importante": "#6f42c1",
+            "Monumentos históricos": "#d63384",
+            "Iglesias y edificios religiosos": "#0d6efd",
+            "Museos y arte": "#198754",
+            "Plazas y espacios abiertos": "#fd7e14",
+            "Cultura y teatro": "#6c757d",
+            "Calles y zonas comerciales": "#ffc107",
+            "Bares y restaurantes": "#dc3545"
+        };
+
+        const iconoPorCategoria = {
+            "Importante": "bi-house-door-fill",
+            "Monumentos históricos": "bi-bank2",
+            "Iglesias y edificios religiosos": "bi-buildings",
+            "Museos y arte": "bi-easel2",
+            "Plazas y espacios abiertos": "bi-tree-fill",
+            "Cultura y teatro": "bi-music-note-beamed",
+            "Calles y zonas comerciales": "bi-bag-fill",
+            "Bares y restaurantes": "bi-cup-straw"
+        };
+
+        // Lógica del menú lateral e instrucciones
+        botonMenu.addEventListener('click', () => {
+            botonMenu.classList.add('d-none');
+            if (!instruccionesPanel.classList.contains('collapsed')) {
+                instruccionesPanel.classList.add('collapsed');
+                toggleBtn.classList.remove('d-none');
+            }
+            if (instruccionesPanel.classList.contains('collapsed')) {
+                document.getElementById('grupoBotonesRuta').classList.add('d-none');
+            }
+            offcanvasInstance.show();
+        });
+
+        offcanvasElement.addEventListener('hidden.bs.offcanvas', () => {
+            botonMenu.classList.remove('d-none');
+        });
+
+        toggleBtn.addEventListener('click', () => {
+            instruccionesPanel.classList.toggle('collapsed');
+
+            const grupoBotones = document.getElementById('grupoBotonesRuta');
+            if (!instruccionesPanel.classList.contains('collapsed')) {
+                grupoBotones.classList.add('d-none');
+                const sidebar = bootstrap.Offcanvas.getInstance(document.getElementById('sidebar'));
+                if (sidebar) sidebar.hide();
+                botonMenu.classList.remove('d-none');
+            } else {
+                grupoBotones.classList.remove('d-none');
+            }
+        });
+
+        cerrarBtn.addEventListener('click', () => {
+            instruccionesPanel.classList.add('collapsed');
+            document.getElementById('grupoBotonesRuta').classList.remove('d-none');
+        });
+
+        document.getElementById('cancelarRuta').addEventListener('click', () => {
+            // Elimina la ruta del mapa
+            if (rutaLayer) {
+                map.removeLayer(rutaLayer);
+                rutaLayer = null;
+            }
+
+            // Eliminar anteriores
+            if (segmentoActivo) {
+                map.removeLayer(segmentoActivo);
+                segmentoActivo = null;
+            }
+            if (contornoActivo) {
+                map.removeLayer(contornoActivo);
+                contornoActivo = null;
+            }
+
+            // Quita cualquier marcador de paso
+            if (puntoActivoMarker) {
+                map.removeLayer(puntoActivoMarker);
+                puntoActivoMarker = null;
+            }
+
+            // Limpia la lista de instrucciones
+            document.getElementById('listaInstrucciones').innerHTML = '';
+
+            // Limpia textos de cabecera
+            const destinoEl = document.getElementById('nombreDestino');
+            if (destinoEl) destinoEl.textContent = '';
+            const duracionRutaEl = document.getElementById('duracionRuta');
+            if (duracionRutaEl) duracionRutaEl.textContent = '--';
+            const distanciaRutaEl = document.getElementById('distanciaRuta');
+            if (distanciaRutaEl) distanciaRutaEl.textContent = '--';
+
+            // Oculta panel y botón
+            instruccionesPanel.classList.add('collapsed');
+            toggleBtn.classList.add('d-none');
+            document.getElementById('cancelarRuta').classList.add('d-none');
+            document.getElementById('grupoBotonesRuta').classList.add('d-none');
+
+            // Resetea variables
+            pasoActivo = null;
+            primerClic = true;
+        });
+
+        // Modal detalle
+        function mostrarModalDetalle(nombreLugar) {
+            let lugar = null;
+            for (const lugares of Object.values(lugaresCategorizados)) {
+                const encontrado = lugares.find(l => l.nombre === nombreLugar);
+                if (encontrado) {
+                    lugar = encontrado;
+                    break;
+                }
+            }
+            if (!lugar) return;
+
+            const { nombre, imagen, descripcion, detalles, horario, tarifas, web, reviews } = lugar;
+            const contenido = `
+                ${imagen ? `<img src="${imagen}" class="img-fluid rounded mb-3" alt="${nombre}">` : ''}
+                <h4 class="mb-2">${nombre}</h4>
+                ${descripcion ? `<p class="text-muted">${descripcion}</p>` : ''}
+                ${detalles || ''}
+                ${horario ? `<p><i class="far fa-clock me-2 text-secondary"></i><strong>Horario:</strong> ${horario}</p>` : ''}
+                ${tarifas ? `<p><i class="fas fa-ticket me-2 text-secondary"></i><strong>Tarifas:</strong> ${tarifas}</p>` : ''}
+                <div class="mt-3 d-flex flex-wrap gap-2">
+                ${web ? `<a href="${web}" target="_blank" class="btn btn-outline-primary"><i class="fas fa-globe me-1"></i> Sitio web</a>` : ''}
+                ${reviews ? `<a href="${reviews}" target="_blank" class="btn btn-outline-secondary"><i class="fa-brands fa-google"></i> Google</a>` : ''}
+                </div>
+            `;
+            document.getElementById('modalDetalleLabel').textContent = nombre;
+            document.getElementById('modalDetalleBody').innerHTML = contenido;
+            new bootstrap.Modal(document.getElementById('modalDetalle')).show();
+        }
+
+        // Render de lugares
+        function renderizarLugares() {
+            capaMarcadores.clearLayers();
+
+            const listaLugares = document.getElementById('lugares-lista');
+            listaLugares.innerHTML = ''; // Limpia antes de renderizar
+            
+            inicializarTogglesCategoria();
+
+            for (const [categoria, lugares] of Object.entries(lugaresCategorizados)) {
+                if (!categoriasVisibles.has(categoria)) continue;
+                const icono = iconoPorCategoria[categoria] || "bi-geo-alt-fill";
+                const header = document.createElement('h6');
+                header.className = 'mt-3 text-uppercase text-muted';
+                header.innerHTML = `<i class="bi ${icono} me-2 text-secondary"></i> ${categoria}`;
+                header.style.borderLeft = `6px solid ${coloresPorCategoria[categoria] || '#333'}`;
+                header.style.paddingLeft = '0.5rem';
+                listaLugares.appendChild(header);
+
+                lugares.forEach(lugar => {
+                    const popupContent = `
+                        <div class="card border-0" style="max-width: 260px;">
+                            <div class="card-body px-3 pt-2 pb-3">
+                                <h6 class="card-title fw-bold mb-1">${lugar.nombre}</h6>
+                                <p class="card-text mb-2 text-muted">${lugar.descripcion || ''}</p>
+                                ${lugar.horario ? `<p class="mb-1"><i class="far fa-clock me-1 text-secondary"></i><strong>Horario:</strong> ${lugar.horario}</p>` : ''}
+                                <div class="mt-2 d-flex flex-column gap-1">
+                                    <button class="btn btn-sm btn-outline-dark btn-mas-info">
+                                        <i class="fas fa-circle-info me-1"></i> Más info
+                                    </button>
+                                </div>
+                            </div>
+                        </div>`;
+
+                    const color = coloresPorCategoria[categoria] || "#666";
+                    const iconClass = iconoPorCategoria[categoria] || "bi-geo-alt";
+
+                    const icono = L.divIcon({
+                        html: `<div class="custom-marker-icon" style="background-color: ${color}"><i class="bi ${iconClass} text-white"></i></div>`,
+                        className: '', // sin clase para evitar estilos Leaflet por defecto
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 28],
+                        popupAnchor: [0, -28]
+                    });
+
+                    //const marker = L.marker(lugar.coords, { icon: icono }).addTo(map).bindPopup(popupContent);
+                    const marker = L.marker(lugar.coords, { icon: icono }).bindPopup(popupContent);
+                    marker.addTo(capaMarcadores);
+
+                    // Esperar a que se abra el popup para vincular el botón
+                    marker.on('popupopen', function () {
+                        const btn = document.querySelector('.leaflet-popup .btn-mas-info');
+                        if (btn) {
+                            btn.addEventListener('click', () => {
+                                mostrarModalDetalle(lugar.nombre);
+                            });
+                        }
+                    });
+
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+                    const nombreSpan = document.createElement('span');
+                    nombreSpan.textContent = lugar.nombre;
+                    nombreSpan.className = 'text-truncate';
+                    nombreSpan.style.flexGrow = '1';
+
+                    const grupoBtns = document.createElement('div');
+                    grupoBtns.className = 'btn-group btn-group-sm';
+                    grupoBtns.role = 'group';
+
+                    const btnVerMapa = document.createElement('button');
+                    btnVerMapa.className = 'btn btn-outline-secondary btn-sm ms-2';
+                    btnVerMapa.title = "Ver en mapa";
+                    btnVerMapa.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+                    btnVerMapa.addEventListener('click', () => {
+                        map.closePopup();
+                        map.setView(lugar.coords, 17, { animate: true });
+                        map.once('moveend', () => {
+                            const punto = map.project(lugar.coords, map.getZoom());
+                            const desplazado = punto.subtract([0, -20]);
+                            const centrado = map.unproject(desplazado, map.getZoom());
+                            map.setView(centrado, 17, { animate: true });
+                            marker.openPopup();
+                        });
+
+                        const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('sidebar'));
+                        if (offcanvas) offcanvas.hide();
+                        document.getElementById('botonMenu').classList.remove('d-none');
+                    });
+
+                    const btnRutaPie = document.createElement('button');
+                    btnRutaPie.className = 'btn btn-outline-primary btn-icon-fixed';
+                    btnRutaPie.title = "Ruta a pie";
+                    btnRutaPie.innerHTML = '<i class="fas fa-person-walking"></i>';
+                    btnRutaPie.addEventListener('click', () => {
+                        destinoSeleccionado = lugar.coords;
+                        nombreDestino = lugar.nombre;
+                        tipoRuta = 'foot';
+                        new bootstrap.Modal(document.getElementById('modalOrigen')).show();
+                    });
+
+                    const btnRutaBici = document.createElement('button');
+                    btnRutaBici.className = 'btn btn-outline-success btn-icon-fixed';
+                    btnRutaBici.title = "Ruta en bici";
+                    btnRutaBici.innerHTML = '<i class="fas fa-person-biking"></i>';
+                    btnRutaBici.addEventListener('click', () => {
+                        destinoSeleccionado = lugar.coords;
+                        nombreDestino = lugar.nombre;
+                        tipoRuta = 'bike';
+                        new bootstrap.Modal(document.getElementById('modalOrigen')).show();
+                    });
+
+                    grupoBtns.appendChild(btnRutaPie);
+                    grupoBtns.appendChild(btnRutaBici);
+
+                    li.appendChild(nombreSpan);
+                    li.appendChild(grupoBtns);
+                    li.appendChild(btnVerMapa);
+                    listaLugares.appendChild(li);
+                });
+            }
+        }
+
+        const categoriasActivas = new Set(Object.keys(coloresPorCategoria));
+
+        document.getElementById('toggleCategorias').addEventListener('click', () => {
+            const panel = document.getElementById('panelCategorias');
+            panel.style.display = (panel.style.display === 'none' ? 'block' : 'none');
+        });
+
+        function inicializarTogglesCategoria() {
+            const contenedor = document.getElementById('contenedorCategorias');
+            contenedor.innerHTML = '';
+
+            Object.entries(iconoPorCategoria).forEach(([categoria, icono]) => {
+                const activo = categoriasVisibles.has(categoria);
+                const color = coloresPorCategoria[categoria] || '#6c757d';
+
+                const btn = document.createElement('button');
+                btn.className = `categoria-toggle btn btn-light border rounded-circle d-flex align-items-center justify-content-center`;
+                btn.style.width = '28px';
+                btn.style.height = '28px';
+                btn.style.backgroundColor = activo ? color : '#f8f9fa';
+                btn.style.color = activo ? 'white' : '#333';
+                btn.title = categoria;
+                btn.innerHTML = `<i class="bi ${icono}"></i>`;
+
+                btn.addEventListener('click', () => {
+                    if (categoriasVisibles.has(categoria)) {
+                        categoriasVisibles.delete(categoria);
+                        btn.style.backgroundColor = '#f8f9fa';
+                        btn.style.color = '#333';
+                    } else {
+                        categoriasVisibles.add(categoria);
+                        btn.style.backgroundColor = color;
+                        btn.style.color = 'white';
+                    }
+                    renderizarLugares();
+                });
+
+                contenedor.appendChild(btn);
+            });
+        }
+
+        // Cálculo y render de ruta
+        function mostrarRuta(origen, destino) {
+            const url = `https://graphhopper.com/api/1/route?point=${origen[0]},${origen[1]}&point=${destino[0]},${destino[1]}&vehicle=${tipoRuta}&locale=es&key=${apiKey}&points_encoded=false&instructions=true&details=distance`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    const coords = data.paths[0].points.coordinates.map(c => [c[1], c[0]]);
+                    if (rutaLayer) map.removeLayer(rutaLayer);
+
+                    rutaLayer = L.polyline(coords, {
+                        color: '#007bff',
+                        weight: 6,
+                        opacity: 0.7,
+                        lineJoin: 'round',
+                        lineCap: 'round'
+                    }).addTo(map);
+
+                    map.fitBounds(rutaLayer.getBounds(), { paddingBottomRight: [0, 300] });
+
+                    const instrucciones = data.paths[0].instructions;
+                    const duracionTotalMs = data.paths[0].time;
+                    const distanciaTotalM = data.paths[0].distance;
+                    const durMin = Math.floor(duracionTotalMs / 60000);
+                    const durSeg = Math.floor((duracionTotalMs % 60000) / 1000);
+
+                    const destinoEl = document.getElementById('nombreDestino');
+                    const duracionEl = document.getElementById('duracionRuta');
+                    const distanciaEl = document.getElementById('distanciaRuta');
+
+                    if (destinoEl) destinoEl.textContent = nombreDestino;
+                    
+                    // Actualiza icono e indicador visual
+                    const tituloInstrucciones = document.getElementById('tituloInstrucciones');
+                    const rutaTitulo = document.getElementById('rutaTitulo');
+
+                    if (tipoRuta === 'foot') {
+                        rutaTitulo.innerHTML = `<i class="fas fa-person-walking me-2"></i>${nombreDestino}`;
+                        tituloInstrucciones.classList.remove('bg-success-subtle');
+                        tituloInstrucciones.classList.add('bg-primary-subtle');
+                    } else {
+                        rutaTitulo.innerHTML = `<i class="fas fa-person-biking me-2"></i>${nombreDestino}`;
+                        tituloInstrucciones.classList.remove('bg-primary-subtle');
+                        tituloInstrucciones.classList.add('bg-success-subtle');
+                    }
+
+                    if (duracionEl) duracionEl.textContent = `${durMin} min ${durSeg} s`;
+                    if (distanciaEl) distanciaEl.textContent = `${(distanciaTotalM / 1000).toFixed(2)} km`;
+
+                    const lista = document.getElementById('listaInstrucciones');
+                    lista.innerHTML = '';
+
+                    function iconoInstruccion(sign) {
+                        switch (sign) {
+                            case 0:  // Continúa recto
+                                return 'bi-arrow-up';
+                            case 1:  // Gira leve a la derecha
+                                return 'bi-arrow-up-right';
+                            case 2:  // Gira a la derecha
+                                return 'bi-arrow-right';
+                            case 3:  // Gira pronunciada a la derecha
+                                return 'bi-sign-turn-right-fill';
+                            case 4:  // Llegada al destino
+                                return 'bi-flag-fill';
+                            case 5:  // Entra en rotonda
+                            case 6:  // Sal de la rotonda
+                                return 'bi-arrow-repeat'; // o 'bi-circle' si prefieres
+                            case 7:  // Gira pronunciada a la izquierda
+                                return 'bi-sign-turn-left-fill';
+                            case -1: // Gira leve a la izquierda
+                                return 'bi-arrow-up-left';
+                            case -2: // Gira a la izquierda
+                                return 'bi-arrow-left';
+                            case -3: // Gira pronunciada a la izquierda
+                                return 'bi-sign-turn-left-fill';
+                            case -7: // Mantente a la izquierda
+                                return 'bi-arrow-bar-left';
+                            case -8: // Mantente a la derecha
+                                return 'bi-arrow-bar-right';
+                            default: // Otros o desconocido
+                                return 'bi-geo-alt-fill';
+                        }
+                    }
+
+                    instrucciones.forEach((inst, i) => {
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item px-2 py-1 list-group-item-action d-flex align-items-start gap-2';
+
+
+                        const metrosI = inst.distance;
+                        const duracionMsI = inst.time;
+                        const minutos = Math.floor(duracionMsI / 60000);
+                        const segundos = Math.floor((duracionMsI % 60000) / 1000);
+                        const tiempoTexto = minutos > 0 ? `${minutos} min ${segundos} s` : `${segundos} s`;
+
+                        const icon = iconoInstruccion(inst.sign);
+                        let texto = inst.text;
+                        if (inst.street_name && texto.includes(inst.street_name)) {
+                            texto = texto.replace(inst.street_name, `<strong>${inst.street_name}</strong>`);
+                        }
+
+                        li.innerHTML = `
+                            <i class="${icon} mt-1 text-primary"></i>
+                            <div class="flex-grow-1">
+                                <div>${texto}</div>
+                                <small class="text-muted">${metrosI.toFixed(0)} m • ${tiempoTexto}</small>
+                            </div>
+                        `;
+
+                        li.addEventListener('click', () => {
+                            const [startIdx, endIdx] = inst.interval;
+                            const tramoCoords = coords.slice(startIdx, endIdx + 1);
+                            const inicio = coords[startIdx];
+                            const punto = map.project(inicio, map.getZoom());
+                            const desplazado = punto.subtract([0, primerClic ? -22.5 : -180]);
+                            const centrado = map.unproject(desplazado, map.getZoom());
+                            primerClic = false;
+
+                            map.flyTo(centrado, 17);
+
+                            // Elimina tramos anteriores
+                            if (segmentoActivo) {
+                                map.removeLayer(segmentoActivo);
+                                segmentoActivo = null;
+                            }
+                            if (contornoActivo) {
+                                map.removeLayer(contornoActivo);
+                                contornoActivo = null;
+                            }
+
+                            // Añade nuevo contorno y segmento
+                            contornoActivo = L.polyline(tramoCoords, {
+                                color: 'white',
+                                weight: 10,
+                                opacity: 0.7,
+                                className: 'tramo-contorno'
+                            }).addTo(map);
+
+                            segmentoActivo = L.polyline(tramoCoords, {
+                                color: '#c62828',
+                                weight: 6,
+                                opacity: 1,
+                                className: 'tramo-activo'
+                            }).addTo(map);
+
+                            // Actualiza clase activa
+                            if (pasoActivo) pasoActivo.classList.remove('active');
+                            li.classList.add('active');
+                            pasoActivo = li;
+                        });
+
+                        lista.appendChild(li);
+                    });
+
+                    // Oculta el panel lateral si está abierto
+                    const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('sidebar'));
+                    if (offcanvas) offcanvas.hide();
+
+                    // Asegura que el panel de instrucciones se muestre
+                    instruccionesPanel.classList.remove('collapsed');
+
+                    // Mostrar solo el botón de cancelar dentro del panel, pero NO el grupo flotante
+                    document.getElementById('toggleInstrucciones').classList.remove('d-none');
+                    document.getElementById('cancelarRuta').classList.remove('d-none');
+                    document.getElementById('grupoBotonesRuta').classList.add('d-none'); // <- OCULTAR EL GRUPO FLOTANTE
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Error al calcular la ruta.");
+                });
+        }
+
+        function cargarWidgetMeteo() {
+            fetch("meteo.php")
+                .then(res => res.json())
+                .then(data => {
+                    const clave = obtenerClavePronostico(data);
+                    if (!clave || !data[clave]) throw new Error("No hay datos meteorológicos válidos");
+
+                    const resumen = data[clave];
+
+                    const kelvinToCelsius = k => (k - 273.15).toFixed(1);
+
+                    const temp = kelvinToCelsius(resumen.temperature?.["2m"]);
+                    const humedad = resumen.humidite?.["2m"] ?? "—";
+                    const viento = resumen.vent_moyen?.["10m"] ?? "—";
+                    const direccion = resumen.vent_direction?.["10m"] ?? "—";
+                    const nubes = resumen.nebulosite?.totale ?? 0;
+                    const lluvia = resumen.pluie ?? 0;
+
+                    const icono = obtenerIconoMeteo(nubes, lluvia);
+
+                    const contenido = `
+                        <div class="mb-1" style="font-size: 0.85rem;">Pronóstico para las ${clave.slice(11, 16)}</div>
+                        <div class="d-flex align-items-center mb-2" style="font-size: 1.2rem;">
+                            ${icono}
+                            <span class="ms-2 fw-bold">${temp} °C</span>
+                        </div>
+                        <div><i class="fas fa-tint me-2 text-primary"></i>Humedad: ${humedad}%</div>
+                        <div><i class="fas fa-wind me-2 text-info"></i>Viento: ${viento} km/h <span class="text-muted">(${direccion}°)</span></div>
+                        <div><i class="fas fa-cloud me-2 text-secondary"></i>Nubosidad: ${nubes}%</div>
+                    `;
+
+                    document.getElementById('meteo-contenido').innerHTML = contenido;
+                })
+                .catch(err => {
+                    console.error("Error al cargar el tiempo:", err);
+                    document.getElementById('meteo-contenido').innerHTML = "No disponible.";
+                });
+        }
+
+        cargarWidgetMeteo();
+
+        function obtenerClavePronostico(data) {
+            const ahora = new Date();
+
+            // Hora redondeada al siguiente múltiplo de 3
+            const horaRedondeada = Math.ceil(ahora.getHours() / 3) * 3;
+
+            const fechaPronostico = new Date(ahora);
+            fechaPronostico.setHours(horaRedondeada, 0, 0, 0); // siguiente bloque
+
+            // Construir clave local
+            const yyyy = fechaPronostico.getFullYear();
+            const mm = String(fechaPronostico.getMonth() + 1).padStart(2, '0');
+            const dd = String(fechaPronostico.getDate()).padStart(2, '0');
+            const hh = String(fechaPronostico.getHours()).padStart(2, '0');
+            const clave = `${yyyy}-${mm}-${dd} ${hh}:00:00`;
+
+            if (data[clave]) {
+                return clave;
+            }
+
+            // Si no hay datos para esa hora, buscar el siguiente bloque disponible
+            const clavesOrdenadas = Object.keys(data).filter(k => k.match(/^\d{4}-\d{2}-\d{2} \d{2}:00:00$/)).sort();
+
+            for (const k of clavesOrdenadas) {
+                if (new Date(k) > ahora) {
+                    return k;
+                }
+            }
+
+            // Último recurso: devolver null
+            return null;
+        }
+
+        function obtenerIconoMeteo(nubosidad, lluvia) {
+            if (lluvia > 2) return '<i class="fas fa-cloud-showers-heavy text-primary"></i>';     // Lluvia fuerte
+            if (lluvia > 0) return '<i class="fas fa-cloud-rain text-primary"></i>';                // Lluvia ligera
+
+            if (nubosidad < 20) return '<i class="fas fa-sun text-warning"></i>';                   // Despejado
+            if (nubosidad < 60) return '<i class="fas fa-cloud-sun text-warning"></i>';             // Parcialmente nublado
+            return '<i class="fas fa-cloud text-secondary"></i>';                                   // Nublado
+        }
+
+        document.getElementById('usarApartamento').addEventListener('click', () => {
+            mostrarRuta(apartamentoCoords, destinoSeleccionado);
+            bootstrap.Modal.getInstance(document.getElementById('modalOrigen')).hide();
+        });
+
+        document.getElementById('usarUbicacion').addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                alert("Geolocalización no soportada.");
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(pos => {
+                const origen = [pos.coords.latitude, pos.coords.longitude];
+                mostrarRuta(origen, destinoSeleccionado);
+                bootstrap.Modal.getInstance(document.getElementById('modalOrigen')).hide();
+            }, err => {
+                alert("No se pudo obtener la ubicación: " + err.message);
+            });
+        });
+
+    </script>
+
+</body>
+
+</html>
