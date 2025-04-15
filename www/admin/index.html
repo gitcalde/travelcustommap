@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de lugares</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="data:,">
+</head>
+<body class="container py-4">
+
+    <h2>Gestión de lugares</h2>
+
+    <button id="btnNuevo" class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#modalLugar">
+        Añadir nuevo lugar
+    </button>
+
+    <div class="modal fade" id="modalLugar" tabindex="-1" aria-labelledby="modalLugarLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form id="formLugar">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalLugarLabel">Nuevo lugar</h5>
+                        <button type="button" class="btn btn-outline-secondary btn-sm ms-3" id="btnImportarGoogle">
+                            Obtener de Google Maps
+                        </button>                        
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body row g-3">
+                        <input type="hidden" id="indiceEdicion" />
+                        <div class="col-md-4">
+                            <label class="form-label">Categoría</label>
+                            <select class="form-select" id="categoriaSelect" required></select>
+                            <input type="text" class="form-control mt-2 d-none" id="otraCategoria" placeholder="Nueva categoría">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Nombre</label>
+                            <input type="text" class="form-control" id="nombre" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Coordenadas [lat,lng]</label>
+                            <input type="text" class="form-control" id="coords" placeholder="44.8378, -0.5792" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción</label>
+                            <input type="text" class="form-control" id="descripcion">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Detalles (HTML permitido)</label>
+                            <textarea class="form-control" id="detalles" rows="3"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Imagen URL</label>
+                            <input type="text" class="form-control" id="imagen">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Web</label>
+                            <input type="text" class="form-control" id="web">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Reseñas</label>
+                            <input type="text" class="form-control" id="reviews">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <h3>Lugares existentes</h3>
+    <div id="listaLugares"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let modalLugarInstance = new bootstrap.Modal(document.getElementById('modalLugar'));
+        let lugares = {};
+
+        async function cargarJSON() {
+            const res = await fetch('bordeaux.json');
+            lugares = await res.json();
+            renderLugares();
+            poblarSelectCategorias();
+        }
+
+        function poblarSelectCategorias() {
+            const select = document.getElementById('categoriaSelect');
+            select.innerHTML = '';
+            const categorias = Object.keys(lugares).sort();
+            categorias.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                select.appendChild(option);
+            });
+            const otra = document.createElement('option');
+            otra.value = '__otra__';
+            otra.textContent = '-- Otra categoría --';
+            select.appendChild(otra);
+        }
+
+        function renderLugares() {
+            const cont = document.getElementById('listaLugares');
+            cont.innerHTML = '';
+            Object.entries(lugares).forEach(([categoria, items]) => {
+                const div = document.createElement('div');
+                div.className = 'mb-3';
+                div.innerHTML = `<h5>${categoria}</h5><ul class="list-group"></ul>`;
+                const ul = div.querySelector('ul');
+                items.forEach((item, i) => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    li.innerHTML = `
+                        <span>${item.nombre}</span>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editarLugar('${categoria}', ${i})">Editar</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="eliminarLugar('${categoria}', ${i})">Eliminar</button>
+                        </div>`;
+                    ul.appendChild(li);
+                });
+                cont.appendChild(div);
+            });
+        }
+
+        window.editarLugar = function (cat, i) {
+            const lugar = lugares[cat][i];
+            document.getElementById('formLugar').reset();
+            document.getElementById('indiceEdicion').value = `${cat}|${i}`;
+            poblarSelectCategorias();
+            const categoriaSelect = document.getElementById('categoriaSelect');
+            const otraCategoria = document.getElementById('otraCategoria');
+            if ([...categoriaSelect.options].some(opt => opt.value === cat)) {
+                categoriaSelect.value = cat;
+                otraCategoria.classList.add('d-none');
+                otraCategoria.value = '';
+                otraCategoria.required = false;
+            } else {
+                categoriaSelect.value = '__otra__';
+                otraCategoria.classList.remove('d-none');
+                otraCategoria.value = cat;
+                otraCategoria.required = true;
+            }
+            document.getElementById('nombre').value = lugar.nombre;
+            document.getElementById('coords').value = lugar.coords.join(', ');
+            document.getElementById('descripcion').value = lugar.descripcion || '';
+            document.getElementById('detalles').value = lugar.detalles || '';
+            document.getElementById('imagen').value = lugar.imagen || '';
+            document.getElementById('web').value = lugar.web || '';
+            document.getElementById('reviews').value = lugar.reviews || '';
+            modalLugarInstance.show();
+        }
+
+        window.eliminarLugar = function (cat, i) {
+            if (confirm("¿Eliminar este lugar?")) {
+                lugares[cat].splice(i, 1);
+                if (lugares[cat].length === 0) delete lugares[cat];
+                guardarJSON();
+            }
+        }
+
+        function guardarJSON() {
+            fetch('guardar.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(lugares)
+            }).then(() => {
+                renderLugares();
+                document.getElementById('formLugar').reset();
+                modalLugarInstance.hide();
+            }).catch(err => alert("Error al guardar JSON: " + err));
+        }
+
+        document.getElementById('formLugar').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const selectValue = document.getElementById('categoriaSelect').value;
+            const cat = selectValue === '__otra__'
+                ? document.getElementById('otraCategoria').value.trim()
+                : selectValue;
+
+            const lugar = {
+                nombre: document.getElementById('nombre').value.trim(),
+                coords: document.getElementById('coords').value.split(',').map(parseFloat),
+                descripcion: document.getElementById('descripcion').value,
+                detalles: document.getElementById('detalles').value,
+                imagen: document.getElementById('imagen').value,
+                web: document.getElementById('web').value,
+                reviews: document.getElementById('reviews').value
+            };
+
+            const indice = document.getElementById('indiceEdicion').value;
+            if (indice) {
+                const [categoriaAntigua, i] = indice.split('|');
+                if (cat !== categoriaAntigua) {
+                    lugares[categoriaAntigua].splice(i, 1);
+                    if (!lugares[cat]) lugares[cat] = [];
+                    lugares[cat].push(lugar);
+                } else {
+                    lugares[cat][i] = lugar;
+                }
+            } else {
+                if (!lugares[cat]) lugares[cat] = [];
+                lugares[cat].push(lugar);
+            }
+
+            guardarJSON();
+        });
+
+        document.getElementById('btnNuevo').addEventListener('click', () => {
+            document.getElementById('formLugar').reset();
+            document.getElementById('indiceEdicion').value = '';
+            poblarSelectCategorias();
+            const otra = document.getElementById('otraCategoria');
+            otra.classList.add('d-none');
+            otra.required = false;
+            modalLugarInstance.show();
+        });
+
+        document.getElementById('categoriaSelect').addEventListener('change', function () {
+            const otra = document.getElementById('otraCategoria');
+            if (this.value === '__otra__') {
+                otra.classList.remove('d-none');
+                otra.required = true;
+            } else {
+                otra.classList.add('d-none');
+                otra.required = false;
+            }
+        });
+
+        cargarJSON();
+
+        const modalGoogle = new bootstrap.Modal(document.getElementById('modalGoogle'));
+        document.getElementById('btnImportarGoogle').addEventListener('click', () => {
+            modalGoogle.show();
+        });
+
+        document.getElementById('procesarGoogle').addEventListener('click', async () => {
+            const url = document.getElementById('urlGoogle').value.trim();
+            if (!url.startsWith('http')) return alert("Introduce una URL válida");
+
+            try {
+                const res = await fetch(`procesar_enlace.php?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+
+                if (data.error) return alert(data.error);
+
+                document.getElementById('nombre').value = data.nombre || '';
+                document.getElementById('coords').value = data.coords || '';
+                document.getElementById('descripcion').value = data.descripcion || '';
+                document.getElementById('imagen').value = data.imagen || '';
+                document.getElementById('web').value = data.web || '';
+                document.getElementById('reviews').value = data.reviews || '';
+
+                modalGoogle.hide();
+            } catch (e) {
+                alert("Error al procesar la URL.");
+            }
+        });
+
+    });
+    </script>
+    <div class="modal fade" id="modalGoogle" tabindex="-1" aria-labelledby="modalGoogleLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Importar desde Google Maps</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="urlGoogle" class="form-label">Pega la URL del sitio en Google Maps:</label>
+                    <input type="text" class="form-control" id="urlGoogle" placeholder="https://maps.app.goo.gl/...">
+                </div>
+                <div class="modal-footer">
+                    <button id="procesarGoogle" class="btn btn-primary">Procesar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</body>
+</html>
