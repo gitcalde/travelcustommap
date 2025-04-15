@@ -1,0 +1,34 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Capacitor
+android/capacitor.gradle
+android/app/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/.cxx/
+
+# VSCode
+.vscode/
+
+# Web build
+dist/
+build/
+*.log
+
+# Capacitor config backups
+capacitor.config.ts.backup*
+
+# macOS
+.DS_Store
+
+# Linux
+*.swp
+
+# Windows
+Thumbs.db
